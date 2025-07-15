@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -700,10 +699,81 @@ const Index = () => {
                 </CardContent>
               </Card>
 
+              {/* Disclaimer */}
+              <Card className="bg-yellow-50 border-yellow-200">
+                <CardContent className="py-4">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+                    <div className="text-sm text-yellow-800">
+                      <p className="font-semibold mb-1">Important Disclaimer</p>
+                      <p>These numbers are rough estimates based on mathematical models and may not reflect actual real-world performance. Actual range can vary significantly based on driving conditions, weather, vehicle maintenance, and other factors not accounted for in this calculator.</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
               {/* Detailed Statistics */}
               <Card>
-                <CardHeader>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
                   <CardTitle>Detailed Analysis</CardTitle>
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm" className="text-blue-600 border-blue-200 hover:bg-blue-50">
+                        <Zap className="w-4 h-4 mr-2" />
+                        Show Formulas
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                      <DialogHeader>
+                        <DialogTitle className="text-2xl text-blue-600">Calculation Formulas</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-6 text-sm">
+                        <div>
+                          <h4 className="font-semibold text-blue-600 mb-3">Main Range Calculation</h4>
+                          <div className="bg-gray-50 p-4 rounded-lg font-mono text-xs">
+                            <p className="mb-2"><strong>Range = (Effective Capacity / Energy Consumption) × 100</strong></p>
+                            <p>Where:</p>
+                            <ul className="ml-4 space-y-1">
+                              <li>• Effective Capacity = Battery Capacity × (SOC / 100) × Degradation × Base Efficiency × Charging Degradation × Temperature Factor × Climate Factor × Regen Factor</li>
+                              <li>• Energy Consumption = Driving Consumption × Terrain Factor</li>
+                            </ul>
+                          </div>
+                        </div>
+
+                        <div>
+                          <h4 className="font-semibold text-blue-600 mb-3">Degradation Factors</h4>
+                          <div className="bg-gray-50 p-4 rounded-lg font-mono text-xs space-y-2">
+                            <p><strong>Cycle Degradation = 0.0001 × Cycles + 0.00000002 × Cycles²</strong></p>
+                            <p><strong>Calendar Degradation = 0.02 × √(Years)</strong></p>
+                            <p><strong>Total Degradation = max(0.3, 1 - (Cycle Degradation + Calendar Degradation))</strong></p>
+                          </div>
+                        </div>
+
+                        <div>
+                          <h4 className="font-semibold text-blue-600 mb-3">Temperature Impact</h4>
+                          <div className="bg-gray-50 p-4 rounded-lg font-mono text-xs">
+                            <p><strong>Temperature Factor = max(0.7, 1.0 - 0.005 × |Temperature - 25|)</strong></p>
+                            <p className="text-gray-600 mt-1">Optimal performance at 25°C, reduced efficiency at extreme temperatures</p>
+                          </div>
+                        </div>
+
+                        <div>
+                          <h4 className="font-semibold text-blue-600 mb-3">Consumption Breakdown</h4>
+                          <div className="bg-gray-50 p-4 rounded-lg font-mono text-xs space-y-2">
+                            <p><strong>Driving Consumption = Base Consumption × Terrain Factor</strong></p>
+                            <p><strong>Climate Control Loss = Base Consumption × (1 - Climate Factor)</strong> (if enabled)</p>
+                            <p><strong>Other Losses = Base Consumption × 0.1</strong> (auxiliary systems)</p>
+                          </div>
+                        </div>
+
+                        <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                          <p className="text-sm text-yellow-800">
+                            <strong>Note:</strong> These formulas are simplified models based on general EV characteristics. Real-world performance involves many additional variables not captured in this calculator.
+                          </p>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {/* Core Metrics */}
