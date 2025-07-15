@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -43,10 +42,10 @@ const NumericInput = ({ value, onChange, min, max, step = 1, placeholder, classN
       onKeyDown={(e) => {
         if (e.key === 'Enter') {
           commitValue();
-          e.target.blur();
+          (e.target as HTMLInputElement).blur();
         }
       }}
-      onFocus={(e) => e.target.select()}
+      onFocus={(e) => (e.target as HTMLInputElement).select()}
       min={min}
       max={max}
       step={step}
@@ -58,9 +57,9 @@ const NumericInput = ({ value, onChange, min, max, step = 1, placeholder, classN
 };
 
 // Debounce utility
-const debounce = (func, delay) => {
-  let timeoutId;
-  return (...args) => {
+const debounce = (func: (...args: any[]) => void, delay: number) => {
+  let timeoutId: NodeJS.Timeout;
+  return (...args: any[]) => {
     clearTimeout(timeoutId);
     timeoutId = setTimeout(() => func(...args), delay);
   };
@@ -193,7 +192,7 @@ const Index = () => {
       }
     }, 300);
     handler();
-    return () => clearTimeout(handler);
+    return () => clearTimeout(timeoutId);
   }, [soc, batteryCapacity, drivingConsumption, temperature, baseEfficiency, chargingDegradation, 
       batteryAgeCycles, batteryAgeYears, terrainFactor, climateControl, climateFactor, 
       regenBraking, regenFactor, showAdvanced, calculationTriggered]);
