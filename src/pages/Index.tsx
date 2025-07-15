@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -43,10 +44,10 @@ const NumericInput = ({ value, onChange, min, max, step = 1, placeholder, classN
       onKeyDown={(e) => {
         if (e.key === 'Enter') {
           commitValue();
-          e.target.blur();
+          (e.target as HTMLInputElement).blur();
         }
       }}
-      onFocus={(e) => e.target.select()}
+      onFocus={(e) => (e.target as HTMLInputElement).select()}
       min={min}
       max={max}
       step={step}
