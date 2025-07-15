@@ -43,10 +43,10 @@ const NumericInput = ({ value, onChange, min, max, step = 1, placeholder, classN
       onKeyDown={(e) => {
         if (e.key === 'Enter') {
           commitValue();
-          (e.target as HTMLInputElement).blur();
+          e.target.blur();
         }
       }}
-      onFocus={(e) => (e.target as HTMLInputElement).select()}
+      onFocus={(e) => e.target.select()}
       min={min}
       max={max}
       step={step}
@@ -77,6 +77,23 @@ const LabelWithTooltip = ({ children, tooltip, required = false }) => {
       <Tooltip>
         <TooltipTrigger asChild>
           <Info className="w-4 h-4 text-blue-600 cursor-help" />
+        </TooltipTrigger>
+        <TooltipContent side="top" className="max-w-xs">
+          <p className="text-sm">{tooltip}</p>
+        </TooltipContent>
+      </Tooltip>
+    </div>
+  );
+};
+
+// Helper component for metric labels with tooltips in analysis section
+const MetricLabelWithTooltip = ({ children, tooltip }) => {
+  return (
+    <div className="flex items-center gap-1">
+      <p className="text-sm text-gray-600">{children}</p>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Info className="w-3 h-3 text-blue-600 cursor-help" />
         </TooltipTrigger>
         <TooltipContent side="top" className="max-w-xs">
           <p className="text-sm">{tooltip}</p>
@@ -699,31 +716,43 @@ const Index = () => {
                     <CollapsibleContent className="mt-4">
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         <div className="p-3 bg-gray-50 rounded-lg">
-                          <p className="text-sm text-gray-600">Effective Capacity</p>
+                          <MetricLabelWithTooltip tooltip="The actual usable capacity after accounting for state of charge, degradation, temperature effects, and efficiency losses.">
+                            Effective Capacity
+                          </MetricLabelWithTooltip>
                           <p className={`font-semibold ${Number(calculateStats().effectiveCapacity) < Number(batteryCapacity) * 0.2 ? 'text-red-600' : 'text-gray-900'}`}>
                             {calculateStats().effectiveCapacity} kWh
                           </p>
                         </div>
                         <div className="p-3 bg-gray-50 rounded-lg">
-                          <p className="text-sm text-gray-600">Energy Consumption</p>
+                          <MetricLabelWithTooltip tooltip="Total energy consumption including driving consumption adjusted for terrain and other factors.">
+                            Energy Consumption
+                          </MetricLabelWithTooltip>
                           <p className="font-semibold">{calculateStats().energyConsumption} kWh/100km</p>
                         </div>
                         <div className="p-3 bg-gray-50 rounded-lg">
-                          <p className="text-sm text-gray-600">Total Degradation</p>
+                          <MetricLabelWithTooltip tooltip="Total battery capacity loss due to aging from both charge cycles and calendar aging combined.">
+                            Total Degradation
+                          </MetricLabelWithTooltip>
                           <p className={`font-semibold ${Number(calculateStats().totalDegradation) > 10 ? 'text-red-600' : 'text-gray-900'}`}>
                             {calculateStats().totalDegradation}%
                           </p>
                         </div>
                         <div className="p-3 bg-gray-50 rounded-lg">
-                          <p className="text-sm text-gray-600">Cycle Degradation</p>
+                          <MetricLabelWithTooltip tooltip="Battery capacity loss specifically from charge-discharge cycles. More cycles lead to higher degradation.">
+                            Cycle Degradation
+                          </MetricLabelWithTooltip>
                           <p className="font-semibold">{calculateStats().cycleDegradation}%</p>
                         </div>
                         <div className="p-3 bg-gray-50 rounded-lg">
-                          <p className="text-sm text-gray-600">Calendar Degradation</p>
+                          <MetricLabelWithTooltip tooltip="Battery capacity loss from aging over time, even when not in use. Increases with battery age.">
+                            Calendar Degradation
+                          </MetricLabelWithTooltip>
                           <p className="font-semibold">{calculateStats().calendarDegradation}%</p>
                         </div>
                         <div className="p-3 bg-gray-50 rounded-lg">
-                          <p className="text-sm text-gray-600">Temperature Factor</p>
+                          <MetricLabelWithTooltip tooltip="Multiplier showing how ambient temperature affects battery performance. Values below 1.0 indicate reduced efficiency.">
+                            Temperature Factor
+                          </MetricLabelWithTooltip>
                           <p className="font-semibold">{calculateStats().tempFactor}</p>
                         </div>
                       </div>
@@ -743,15 +772,21 @@ const Index = () => {
                     <CollapsibleContent className="mt-4">
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="p-3 bg-blue-50 rounded-lg">
-                          <p className="text-sm text-gray-600">Driving</p>
+                          <MetricLabelWithTooltip tooltip="Energy consumed for vehicle propulsion, adjusted for terrain and driving conditions.">
+                            Driving
+                          </MetricLabelWithTooltip>
                           <p className="font-semibold text-blue-700">{calculateStats().consumptionBreakdown.driving} kWh/100km</p>
                         </div>
                         <div className="p-3 bg-orange-50 rounded-lg">
-                          <p className="text-sm text-gray-600">Climate Control</p>
+                          <MetricLabelWithTooltip tooltip="Additional energy consumed by heating, air conditioning, and other climate control systems.">
+                            Climate Control
+                          </MetricLabelWithTooltip>
                           <p className="font-semibold text-orange-700">{calculateStats().consumptionBreakdown.climate} kWh/100km</p>
                         </div>
                         <div className="p-3 bg-gray-50 rounded-lg">
-                          <p className="text-sm text-gray-600">Other Losses</p>
+                          <MetricLabelWithTooltip tooltip="Energy losses from auxiliary systems like lights, electronics, and inefficiencies in the drivetrain.">
+                            Other Losses
+                          </MetricLabelWithTooltip>
                           <p className="font-semibold">{calculateStats().consumptionBreakdown.other} kWh/100km</p>
                         </div>
                       </div>
@@ -764,7 +799,17 @@ const Index = () => {
                   <Collapsible open={isSensitivityOpen} onOpenChange={setIsSensitivityOpen}>
                     <CollapsibleTrigger asChild>
                       <Button variant="ghost" className="w-full justify-between p-0 h-auto">
-                        <span className="font-semibold text-blue-600">Range Sensitivity to SOC</span>
+                        <div className="flex items-center gap-1">
+                          <span className="font-semibold text-blue-600">Range Sensitivity to SOC</span>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Info className="w-4 h-4 text-blue-600 cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="max-w-xs">
+                              <p className="text-sm">Shows how your estimated range changes with different battery charge levels, helping you plan trips and charging stops.</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
                         {isSensitivityOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                       </Button>
                     </CollapsibleTrigger>
