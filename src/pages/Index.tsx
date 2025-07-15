@@ -1,910 +1,534 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
-import { Badge } from '@/components/ui/badge';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Progress } from '@/components/ui/progress';
-import { Separator } from '@/components/ui/separator';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { ChevronDown, ChevronUp, Info, Zap, Battery, Gauge, AlertTriangle, Car } from 'lucide-react';
-import { toast } from '@/hooks/use-toast';
+import { Card } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/hover-card";
+import { HelpCircle, Info, Calculator } from 'lucide-react';
 
-// Custom numeric input component
-const NumericInput = ({ value, onChange, min, max, step = 1, placeholder, className = "", ...props }) => {
-  const [internalValue, setInternalValue] = useState(value === null || value === undefined ? '' : String(value));
+interface Factors {
+  temperature: number;
+  speed: number;
+  climate: number;
+  terrain: number;
+}
 
-  useEffect(() => {
-    setInternalValue(value === null || value === undefined ? '' : String(value));
-  }, [value]);
+type ClimateUsage = 'Low' | 'Medium' | 'High';
+type TerrainType = 'Flat' | 'Hilly' | 'Mountain';
 
-  const commitValue = () => {
-    let val = internalValue;
-    if (val === '' || val === '-' || val === '.' || val === '-.') {
-      onChange('');
-      return;
+const NumericInput = React.forwardRef<
+  HTMLInputElement,
+  React.ComponentProps<"input"> & { onChange: (value: number) => void }
+>(({ className, value, onChange, ...props }, ref) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const parsedValue = parseFloat(e.target.value);
+    if (!isNaN(parsedValue)) {
+      onChange(parsedValue);
+    } else if (e.target.value === "") {
+      onChange(NaN);
     }
-    let num = Number(val);
-    if (min !== undefined && num < min) num = min;
-    if (max !== undefined && num > max) num = max;
-    onChange(String(num));
   };
 
   return (
     <Input
       type="number"
-      value={internalValue}
-      onChange={(e) => setInternalValue(e.target.value)}
-      onBlur={commitValue}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') {
-          commitValue();
-          (e.target as HTMLInputElement).blur();
-        }
-      }}
-      onFocus={(e) => (e.target as HTMLInputElement).select()}
-      min={min}
-      max={max}
-      step={step}
-      placeholder={placeholder}
       className={className}
+      value={isNaN(value) ? '' : value}
+      onChange={handleChange}
+      ref={ref}
       {...props}
     />
   );
-};
+});
+NumericInput.displayName = "NumericInput";
 
-// Debounce utility
-const debounce = (func: (...args: any[]) => void, delay: number) => {
-  let timeoutId: NodeJS.Timeout;
-  return (...args: any[]) => {
-    clearTimeout(timeoutId);
-    timeoutId = setTimeout(() => func(...args), delay);
-  };
-};
+export default function Index() {
+  const [batteryCapacity, setBatteryCapacity] = useState<number>(75);
+  const [epaRange, setEpaRange] = useState<number>(330);
+  const [currentCharge, setCurrentCharge] = useState<number>(80);
+  const [temperature, setTemperature] = useState<number>(70);
+  const [avgSpeed, setAvgSpeed] = useState<number>(65);
+  const [climateUsage, setClimateUsage] = useState<ClimateUsage>('Medium');
+  const [terrainType, setTerrainType] = useState<TerrainType>('Flat');
+  const [estimatedRange, setEstimatedRange] = useState<number>(0);
+  const [efficiency, setEfficiency] = useState<number>(0);
+  const [factors, setFactors] = useState<Factors>({
+    temperature: 1,
+    speed: 1,
+    climate: 1,
+    terrain: 1,
+  });
+  const [showFormulas, setShowFormulas] = useState<boolean>(false);
 
-// Helper component for labels with tooltips
-const LabelWithTooltip = ({ children, tooltip, required = false }) => {
-  return (
-    <div className="flex items-center gap-1">
-      <Label className="flex items-center gap-1">
-        {children}
-        {required && <span className="text-red-500">*</span>}
-      </Label>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Info className="w-4 h-4 text-blue-600 cursor-help" />
-        </TooltipTrigger>
-        <TooltipContent side="top" className="max-w-xs">
-          <p className="text-sm">{tooltip}</p>
-        </TooltipContent>
-      </Tooltip>
-    </div>
-  );
-};
-
-// Helper component for metric labels with tooltips in analysis section
-const MetricLabelWithTooltip = ({ children, tooltip }) => {
-  return (
-    <div className="flex items-center gap-1">
-      <p className="text-sm text-gray-600">{children}</p>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Info className="w-3 h-3 text-blue-600 cursor-help" />
-        </TooltipTrigger>
-        <TooltipContent side="top" className="max-w-xs">
-          <p className="text-sm">{tooltip}</p>
-        </TooltipContent>
-      </Tooltip>
-    </div>
-  );
-};
-
-const Index = () => {
-  // Core state
-  const [soc, setSoc] = useState('');
-  const [batteryCapacity, setBatteryCapacity] = useState('');
-  const [drivingConsumption, setDrivingConsumption] = useState('');
-  
-  // Advanced options state
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [temperature, setTemperature] = useState('25');
-  const [manufacturer, setManufacturer] = useState('panasonic');
-  const [baseEfficiency, setBaseEfficiency] = useState('0.98');
-  const [chargingBehavior, setChargingBehavior] = useState('standard');
-  const [chargingDegradation, setChargingDegradation] = useState('0.98');
-  const [batteryAgeCycles, setBatteryAgeCycles] = useState('100');
-  const [batteryAgeYears, setBatteryAgeYears] = useState('2');
-  const [drivingStyle, setDrivingStyle] = useState('normal');
-  const [terrain, setTerrain] = useState('flat');
-  const [terrainFactor, setTerrainFactor] = useState('1.0');
-  const [climateControl, setClimateControl] = useState(false);
-  const [climateFactor, setClimateFactor] = useState('0.85');
-  const [regenBraking, setRegenBraking] = useState(true);
-  const [regenFactor, setRegenFactor] = useState('1.05');
-  
-  // UI state
-  const [predictedRange, setPredictedRange] = useState(null);
-  const [calculationTriggered, setCalculationTriggered] = useState(false);
-  const [isCoreMetricsOpen, setIsCoreMetricsOpen] = useState(true);
-  const [isConsumptionOpen, setIsConsumptionOpen] = useState(true);
-  const [isSensitivityOpen, setIsSensitivityOpen] = useState(true);
-
-  const getDynamicDefaults = (capacity) => {
-    const consumption = capacity > 75 ? 18 : capacity < 40 ? 14 : 16;
-    const terrainFactor = capacity > 75 ? 1.05 : 1.0;
-    return { consumption, terrainFactor };
-  };
-
-  const calculateRange = (
-    soc, batteryCapacity, drivingConsumption, temperature, baseEfficiency,
-    chargingDegradation, batteryAgeCycles, batteryAgeYears, terrainFactor,
-    climateControl, climateFactor, regenBraking, regenFactor
-  ) => {
-    const cycleDegradation = 0.0001 * batteryAgeCycles + 0.00000002 * batteryAgeCycles ** 2;
-    const calendarDegradation = 0.02 * Math.sqrt(batteryAgeYears);
-    const degradation = Math.max(0.7, 1 - (cycleDegradation + calendarDegradation));
-    const tempFactor = Math.max(0.7, 1.0 - 0.005 * Math.abs(temperature - 25));
-    const effectiveClimateFactor = climateControl ? climateFactor : 1.0;
-    const effectiveRegenFactor = regenBraking ? regenFactor : 1.0;
-    const effectiveCapacity = batteryCapacity * (soc / 100) * degradation * baseEfficiency * 
-      chargingDegradation * tempFactor * effectiveClimateFactor * effectiveRegenFactor;
-    const energyConsumption = drivingConsumption * terrainFactor;
-    const range = (effectiveCapacity / energyConsumption) * 100;
-    
-    return { 
-      range: Math.max(0, range).toFixed(1),
-      effectiveCapacity: effectiveCapacity.toFixed(2),
-      cycleDegradation: (cycleDegradation * 100).toFixed(2),
-      calendarDegradation: (calendarDegradation * 100).toFixed(2),
-      totalDegradation: ((1 - degradation) * 100).toFixed(2),
-      tempFactor: tempFactor.toFixed(3),
-      energyConsumption: energyConsumption.toFixed(2)
-    };
-  };
-
-  const validateInputs = () => {
-    const requiredFields = showAdvanced
-      ? [soc, batteryCapacity, drivingConsumption, temperature, baseEfficiency, chargingDegradation, 
-         batteryAgeCycles, batteryAgeYears, terrainFactor, climateFactor, regenFactor]
-      : [soc, batteryCapacity, drivingConsumption];
-    return requiredFields.every(val => val !== '' && !isNaN(Number(val)));
-  };
-
-  const calculateStats = () => {
-    const { consumption, terrainFactor: defaultTerrainFactor } = getDynamicDefaults(Number(batteryCapacity));
-    const stats = calculateRange(
-      Number(soc), Number(batteryCapacity),
-      showAdvanced ? Number(drivingConsumption) : consumption,
-      showAdvanced ? Number(temperature) : 25,
-      showAdvanced ? Number(baseEfficiency) : 0.98,
-      showAdvanced ? Number(chargingDegradation) : 0.98,
-      showAdvanced ? Number(batteryAgeCycles) : 100,
-      showAdvanced ? Number(batteryAgeYears) : 2,
-      showAdvanced ? Number(terrainFactor) : defaultTerrainFactor,
-      showAdvanced ? climateControl : false,
-      showAdvanced ? Number(climateFactor) : 0.85,
-      showAdvanced ? regenBraking : true,
-      showAdvanced ? Number(regenFactor) : 1.05
-    );
-
-    // Sensitivity analysis
-    const socValues = [10, 30, 50, 70, 90];
-    const rangeSensitivity = socValues.map(s => ({
-      soc: s,
-      range: calculateRange(
-        s, Number(batteryCapacity),
-        showAdvanced ? Number(drivingConsumption) : consumption,
-        showAdvanced ? Number(temperature) : 25,
-        showAdvanced ? Number(baseEfficiency) : 0.98,
-        showAdvanced ? Number(chargingDegradation) : 0.98,
-        showAdvanced ? Number(batteryAgeCycles) : 100,
-        showAdvanced ? Number(batteryAgeYears) : 2,
-        showAdvanced ? Number(terrainFactor) : defaultTerrainFactor,
-        showAdvanced ? climateControl : false,
-        showAdvanced ? Number(climateFactor) : 0.85,
-        showAdvanced ? regenBraking : true,
-        showAdvanced ? Number(regenFactor) : 1.05
-      ).range
-    }));
-
-    const driving = (Number(drivingConsumption) * Number(terrainFactor)).toFixed(2);
-    const climate = climateControl ? (Number(drivingConsumption) * (1 - Number(climateFactor))).toFixed(2) : '0.00';
-    const other = (Number(drivingConsumption) * 0.1).toFixed(2);
-
-    return { ...stats, rangeSensitivity, consumptionBreakdown: { driving, climate, other } };
-  };
-
-  // Real-time updates with debounce
   useEffect(() => {
-    if (!calculationTriggered) return;
-    
-    const handler = debounce(() => {
-      if (validateInputs()) {
-        const { range } = calculateStats();
-        setPredictedRange(range);
-      } else {
-        setPredictedRange(null);
-      }
-    }, 300);
-    
-    handler();
-    
-    // No cleanup needed as debounce handles its own timeout
-  }, [soc, batteryCapacity, drivingConsumption, temperature, baseEfficiency, chargingDegradation, 
-      batteryAgeCycles, batteryAgeYears, terrainFactor, climateControl, climateFactor, 
-      regenBraking, regenFactor, showAdvanced, calculationTriggered]);
+    // Temperature impact
+    const temperatureFactor = 1 - (Math.abs(temperature - 70) * 0.015);
 
-  const handleCalculate = () => {
-    setCalculationTriggered(true);
-    if (validateInputs()) {
-      const { range } = calculateStats();
-      setPredictedRange(range);
-      toast({
-        title: "Range Calculated",
-        description: `Estimated range: ${range} km`,
-      });
-    } else {
-      toast({
-        title: "Missing Information",
-        description: "Please fill in all required fields",
-        variant: "destructive",
-      });
+    // Speed impact (assuming optimal speed is 25 mph)
+    const speedFactor = 1 - (Math.pow(Math.max(0, avgSpeed - 25), 2) * 0.0008);
+
+    // Climate control usage impact
+    let climateFactor = 1;
+    switch (climateUsage) {
+      case 'Low':
+        climateFactor = 0.95;
+        break;
+      case 'Medium':
+        climateFactor = 0.85;
+        break;
+      case 'High':
+        climateFactor = 0.75;
+        break;
     }
-  };
 
-  const getRangeColor = (range) => {
-    const numRange = Number(range);
-    if (numRange < 50) return "text-red-600";
-    if (numRange < 150) return "text-orange-600";
-    return "text-green-600";
-  };
+    // Terrain type impact
+    let terrainFactor = 1;
+    switch (terrainType) {
+      case 'Hilly':
+        terrainFactor = 0.9;
+        break;
+      case 'Mountain':
+        terrainFactor = 0.8;
+        break;
+      default:
+        terrainFactor = 1;
+        break;
+    }
 
-  const getRangeIcon = (range) => {
-    const numRange = Number(range);
-    if (numRange < 50) return <AlertTriangle className="w-6 h-6 text-red-600" />;
-    if (numRange < 150) return <Gauge className="w-6 h-6 text-orange-600" />;
-    return <Zap className="w-6 h-6 text-green-600" />;
-  };
+    setFactors({
+      temperature: temperatureFactor,
+      speed: speedFactor,
+      climate: climateFactor,
+      terrain: terrainFactor,
+    });
+
+    const newEstimatedRange = epaRange * (currentCharge / 100) * temperatureFactor * speedFactor * climateFactor * terrainFactor;
+    setEstimatedRange(newEstimatedRange);
+
+    const newEfficiency = batteryCapacity ? newEstimatedRange / (batteryCapacity * (currentCharge / 100)) : 0;
+    setEfficiency(newEfficiency);
+
+  }, [batteryCapacity, epaRange, currentCharge, temperature, avgSpeed, climateUsage, terrainType]);
 
   return (
-    <TooltipProvider>
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-        <div className="max-w-6xl mx-auto">
-          {/* Header */}
-          <div className="text-center mb-8">
-            <div className="flex items-center justify-center gap-3 mb-4">
-              <div className="p-3 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full">
-                <Car className="w-8 h-8 text-white" />
-              </div>
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                EV Range Estimator
-              </h1>
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button variant="ghost" size="sm" className="p-1">
-                    <Info className="w-5 h-5 text-blue-600" />
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-                  <DialogHeader>
-                    <DialogTitle className="text-2xl text-blue-600">How It Works</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4 text-sm">
-                    <div>
-                      <h4 className="font-semibold text-blue-600 mb-2">Core Inputs:</h4>
-                      <ul className="space-y-1 text-gray-700">
-                        <li><strong>State of Charge (SOC):</strong> Current battery percentage (0-100%)</li>
-                        <li><strong>Battery Capacity:</strong> Total energy capacity in kWh</li>
-                        <li><strong>Driving Consumption:</strong> Energy used per 100 km in kWh</li>
-                      </ul>
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-blue-600 mb-2">Advanced Factors:</h4>
-                      <ul className="space-y-1 text-gray-700">
-                        <li><strong>Temperature:</strong> Affects battery efficiency</li>
-                        <li><strong>Battery Age:</strong> Considers degradation over time and cycles</li>
-                        <li><strong>Terrain & Driving Style:</strong> Impact energy consumption</li>
-                        <li><strong>Climate Control:</strong> Additional energy usage</li>
-                      </ul>
-                    </div>
-                  </div>
-                </DialogContent>
-              </Dialog>
-            </div>
-            <p className="text-gray-600 max-w-2xl mx-auto">
-              Get accurate range estimates for your electric vehicle based on real-world conditions and driving patterns.
-            </p>
-          </div>
+    <div className="min-h-screen bg-background p-4 font-sans">
+      <div className="max-w-6xl mx-auto">
+        <div className="text-center mb-8">
+          <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-3">
+            EV Range Compass
+          </h1>
+          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+            Calculate your electric vehicle's range based on real-world conditions and driving patterns
+          </p>
+        </div>
 
-          {/* Core Inputs */}
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Battery className="w-5 h-5" />
-                Essential Information
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="space-y-2">
-                  <LabelWithTooltip 
-                    required 
-                    tooltip="The current percentage of battery charge (0-100%). This affects how much energy is available for driving."
-                  >
-                    State of Charge (%)
-                  </LabelWithTooltip>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Input Section */}
+          <Card className="p-6">
+            <h2 className="text-2xl font-semibold mb-6 text-foreground">Vehicle Information</h2>
+            
+            <div className="space-y-6">
+              <div>
+                <HoverCard>
+                  <HoverCardTrigger asChild>
+                    <Label htmlFor="batteryCapacity" className="text-base font-medium text-foreground cursor-help flex items-center gap-1">
+                      Battery Capacity (kWh)
+                      <HelpCircle className="w-4 h-4" />
+                    </Label>
+                  </HoverCardTrigger>
+                  <HoverCardContent className="w-80">
+                    <p className="text-sm">The total energy storage capacity of your EV's battery pack, typically found in your vehicle specifications.</p>
+                  </HoverCardContent>
+                </HoverCard>
+                <NumericInput
+                  id="batteryCapacity"
+                  value={batteryCapacity}
+                  onChange={setBatteryCapacity}
+                  min={10}
+                  max={200}
+                  step={1}
+                  className="mt-2 text-base"
+                />
+              </div>
+
+              <div>
+                <HoverCard>
+                  <HoverCardTrigger asChild>
+                    <Label htmlFor="epaRange" className="text-base font-medium text-foreground cursor-help flex items-center gap-1">
+                      EPA Range (miles)
+                      <HelpCircle className="w-4 h-4" />
+                    </Label>
+                  </HoverCardTrigger>
+                  <HoverCardContent className="w-80">
+                    <p className="text-sm">The official EPA-rated range of your vehicle under standardized testing conditions.</p>
+                  </HoverCardContent>
+                </HoverCard>
+                <NumericInput
+                  id="epaRange"
+                  value={epaRange}
+                  onChange={setEpaRange}
+                  min={50}
+                  max={500}
+                  step={1}
+                  className="mt-2 text-base"
+                />
+              </div>
+
+              <div>
+                <HoverCard>
+                  <HoverCardTrigger asChild>
+                    <Label htmlFor="currentCharge" className="text-base font-medium text-foreground cursor-help flex items-center gap-1">
+                      Current Charge (%)
+                      <HelpCircle className="w-4 h-4" />
+                    </Label>
+                  </HoverCardTrigger>
+                  <HoverCardContent className="w-80">
+                    <p className="text-sm">Your vehicle's current battery charge level as a percentage of total capacity.</p>
+                  </HoverCardContent>
+                </HoverCard>
+                <div className="mt-2">
                   <NumericInput
-                    id="soc"
-                    value={soc}
-                    onChange={setSoc}
+                    id="currentCharge"
+                    value={currentCharge}
+                    onChange={setCurrentCharge}
                     min={0}
                     max={100}
-                    placeholder="80"
-                    className="text-lg"
+                    step={1}
+                    className="text-base"
                   />
-                  {soc && Number(soc) <= 10 && (
-                    <Badge variant="destructive" className="text-xs">
-                      <AlertTriangle className="w-3 h-3 mr-1" />
-                      Low battery warning
-                    </Badge>
-                  )}
-                  {soc && (
-                    <Progress value={Number(soc)} className="h-2" />
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  <LabelWithTooltip 
-                    required 
-                    tooltip="The total energy capacity of the battery in kWh. Higher capacity means potentially longer range."
-                  >
-                    Battery Capacity (kWh)
-                  </LabelWithTooltip>
-                  <NumericInput
-                    id="capacity"
-                    value={batteryCapacity}
-                    onChange={setBatteryCapacity}
-                    min={10}
-                    max={200}
-                    placeholder="60"
-                    className="text-lg"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <LabelWithTooltip 
-                    required 
-                    tooltip="Energy consumed per 100 km in kWh. This depends on your driving style, vehicle efficiency, and conditions."
-                  >
-                    Consumption (kWh/100km)
-                  </LabelWithTooltip>
-                  <NumericInput
-                    id="consumption"
-                    value={drivingConsumption}
-                    onChange={setDrivingConsumption}
-                    min={5}
-                    max={50}
-                    placeholder="16"
-                    className="text-lg"
-                  />
+                  <Progress value={currentCharge} className="mt-3 h-3" />
                 </div>
               </div>
-            </CardContent>
+            </div>
+
+            <h3 className="text-xl font-semibold mt-8 mb-4 text-foreground">Driving Conditions</h3>
+            
+            <div className="space-y-6">
+              <div>
+                <HoverCard>
+                  <HoverCardTrigger asChild>
+                    <Label htmlFor="temperature" className="text-base font-medium text-foreground cursor-help flex items-center gap-1">
+                      Temperature (°F)
+                      <HelpCircle className="w-4 h-4" />
+                    </Label>
+                  </HoverCardTrigger>
+                  <HoverCardContent className="w-80">
+                    <p className="text-sm">Ambient temperature significantly affects battery performance. Extreme cold or heat reduces efficiency.</p>
+                  </HoverCardContent>
+                </HoverCard>
+                <NumericInput
+                  id="temperature"
+                  value={temperature}
+                  onChange={setTemperature}
+                  min={-20}
+                  max={120}
+                  step={1}
+                  className="mt-2 text-base"
+                />
+              </div>
+
+              <div>
+                <HoverCard>
+                  <HoverCardTrigger asChild>
+                    <Label htmlFor="avgSpeed" className="text-base font-medium text-foreground cursor-help flex items-center gap-1">
+                      Average Speed (mph)
+                      <HelpCircle className="w-4 h-4" />
+                    </Label>
+                  </HoverCardTrigger>
+                  <HoverCardContent className="w-80">
+                    <p className="text-sm">Higher speeds increase aerodynamic drag and reduce efficiency. City driving (25-35 mph) is typically most efficient.</p>
+                  </HoverCardContent>
+                </HoverCard>
+                <NumericInput
+                  id="avgSpeed"
+                  value={avgSpeed}
+                  onChange={setAvgSpeed}
+                  min={5}
+                  max={85}
+                  step={1}
+                  className="mt-2 text-base"
+                />
+              </div>
+
+              <div>
+                <HoverCard>
+                  <HoverCardTrigger asChild>
+                    <Label className="text-base font-medium text-foreground cursor-help flex items-center gap-1">
+                      Climate Control Usage
+                      <HelpCircle className="w-4 h-4" />
+                    </Label>
+                  </HoverCardTrigger>
+                  <HoverCardContent className="w-80">
+                    <p className="text-sm">Heating and cooling systems draw significant power from the battery, especially heating in winter conditions.</p>
+                  </HoverCardContent>
+                </HoverCard>
+                <div className="grid grid-cols-3 gap-3 mt-2">
+                  {(['Low', 'Medium', 'High'] as ClimateUsage[]).map((level) => (
+                    <Button
+                      key={level}
+                      variant={climateUsage === level ? "default" : "outline"}
+                      onClick={() => setClimateUsage(level)}
+                      className="text-sm font-medium"
+                    >
+                      {level}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <HoverCard>
+                  <HoverCardTrigger asChild>
+                    <Label className="text-base font-medium text-foreground cursor-help flex items-center gap-1">
+                      Terrain Type
+                      <HelpCircle className="w-4 h-4" />
+                    </Label>
+                  </HoverCardTrigger>
+                  <HoverCardContent className="w-80">
+                    <p className="text-sm">Hilly terrain requires more energy for climbing but can recover some through regenerative braking on descents.</p>
+                  </HoverCardContent>
+                </HoverCard>
+                <div className="grid grid-cols-3 gap-3 mt-2">
+                  {(['Flat', 'Hilly', 'Mountain'] as TerrainType[]).map((terrain) => (
+                    <Button
+                      key={terrain}
+                      variant={terrainType === terrain ? "default" : "outline"}
+                      onClick={() => setTerrainType(terrain)}
+                      className="text-sm font-medium"
+                    >
+                      {terrain}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            </div>
           </Card>
 
-          {/* Advanced Options Toggle */}
-          <div className="text-center mb-6">
-            <Button
-              onClick={() => setShowAdvanced(!showAdvanced)}
-              variant="outline"
-              size="lg"
-              className="text-blue-600 border-blue-200 hover:bg-blue-50"
-            >
-              {showAdvanced ? <ChevronUp className="w-4 h-4 mr-2" /> : <ChevronDown className="w-4 h-4 mr-2" />}
-              {showAdvanced ? 'Hide' : 'Show'} Advanced Options
-            </Button>
-          </div>
-
-          {/* Advanced Options */}
-          {showAdvanced && (
-            <Card className="mb-6">
-              <CardHeader>
-                <CardTitle>Advanced Configuration</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  <div className="space-y-2">
-                    <LabelWithTooltip tooltip="Different manufacturers have varying battery chemistries and efficiencies.">
-                      Battery Manufacturer
-                    </LabelWithTooltip>
-                    <Select value={manufacturer} onValueChange={setManufacturer}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="panasonic">Panasonic</SelectItem>
-                        <SelectItem value="lg">LG Chem</SelectItem>
-                        <SelectItem value="samsung">Samsung SDI</SelectItem>
-                        <SelectItem value="catl">CATL</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <LabelWithTooltip 
-                      required 
-                      tooltip="Ambient temperature in °C. Extreme temperatures reduce battery efficiency and range."
-                    >
-                      Temperature (°C)
-                    </LabelWithTooltip>
-                    <NumericInput
-                      id="temperature"
-                      value={temperature}
-                      onChange={setTemperature}
-                      min={-20}
-                      max={50}
-                      placeholder="25"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <LabelWithTooltip 
-                      required 
-                      tooltip="Battery efficiency factor (0.5-1.0). Higher values mean less energy loss during discharge."
-                    >
-                      Battery Efficiency
-                    </LabelWithTooltip>
-                    <NumericInput
-                      id="efficiency"
-                      value={baseEfficiency}
-                      onChange={setBaseEfficiency}
-                      min={0.5}
-                      max={1}
-                      step={0.01}
-                      placeholder="0.98"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <LabelWithTooltip tooltip="Charging behavior affects battery degradation. Fast charging causes more wear.">
-                      Charging Behavior
-                    </LabelWithTooltip>
-                    <Select value={chargingBehavior} onValueChange={(value) => {
-                      setChargingBehavior(value);
-                      const factors = { standard: '0.98', fast: '0.90', mixed: '0.94' };
-                      setChargingDegradation(factors[value] || '0.98');
-                    }}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="standard">Standard (0.5C)</SelectItem>
-                        <SelectItem value="fast">Fast Charging (2C)</SelectItem>
-                        <SelectItem value="mixed">Mixed Usage</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <LabelWithTooltip 
-                      required 
-                      tooltip="Factor representing battery capacity loss due to charging wear (0.5-1.0)."
-                    >
-                      Charging Degradation
-                    </LabelWithTooltip>
-                    <NumericInput
-                      id="degradation"
-                      value={chargingDegradation}
-                      onChange={setChargingDegradation}
-                      min={0.5}
-                      max={1}
-                      step={0.01}
-                      placeholder="0.98"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <LabelWithTooltip 
-                      required 
-                      tooltip="Number of charge cycles the battery has undergone. More cycles = more degradation."
-                    >
-                      Battery Age (cycles)
-                    </LabelWithTooltip>
-                    <NumericInput
-                      id="cycles"
-                      value={batteryAgeCycles}
-                      onChange={setBatteryAgeCycles}
-                      min={0}
-                      max={2000}
-                      placeholder="100"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <LabelWithTooltip 
-                      required 
-                      tooltip="Age of the battery in years. Batteries naturally degrade over time even without use."
-                    >
-                      Battery Age (years)
-                    </LabelWithTooltip>
-                    <NumericInput
-                      id="years"
-                      value={batteryAgeYears}
-                      onChange={setBatteryAgeYears}
-                      min={0}
-                      max={20}
-                      placeholder="2"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <LabelWithTooltip tooltip="Driving style affects energy consumption. Aggressive driving uses more energy.">
-                      Driving Style
-                    </LabelWithTooltip>
-                    <Select value={drivingStyle} onValueChange={(value) => {
-                      setDrivingStyle(value);
-                      const consumption = { eco: '14', normal: '16', aggressive: '20' };
-                      setDrivingConsumption(consumption[value] || '16');
-                    }}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="eco">Eco (Efficient)</SelectItem>
-                        <SelectItem value="normal">Normal</SelectItem>
-                        <SelectItem value="aggressive">Aggressive</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <LabelWithTooltip tooltip="Terrain type affects energy consumption. Hills and mountains require more energy.">
-                      Terrain Type
-                    </LabelWithTooltip>
-                    <Select value={terrain} onValueChange={(value) => {
-                      setTerrain(value);
-                      const factors = { flat: '1.0', hilly: '1.1', mountainous: '1.2' };
-                      setTerrainFactor(factors[value] || '1.0');
-                    }}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="flat">Flat</SelectItem>
-                        <SelectItem value="hilly">Hilly</SelectItem>
-                        <SelectItem value="mountainous">Mountainous</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <LabelWithTooltip 
-                      required 
-                      tooltip="Multiplier for terrain impact on energy consumption (1.0-2.0). Higher values = more energy needed."
-                    >
-                      Terrain Factor
-                    </LabelWithTooltip>
-                    <NumericInput
-                      id="terrain-factor"
-                      value={terrainFactor}
-                      onChange={setTerrainFactor}
-                      min={1}
-                      max={2}
-                      step={0.1}
-                      placeholder="1.0"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <LabelWithTooltip 
-                      required 
-                      tooltip="Factor for energy efficiency when climate control is used (0.5-1.0). Lower values = more energy used."
-                    >
-                      Climate Factor
-                    </LabelWithTooltip>
-                    <NumericInput
-                      id="climate-factor"
-                      value={climateFactor}
-                      onChange={setClimateFactor}
-                      min={0.5}
-                      max={1}
-                      step={0.01}
-                      placeholder="0.85"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <LabelWithTooltip 
-                      required 
-                      tooltip="Factor for energy recovery from regenerative braking (1.0-1.5). Higher values = more energy recovered."
-                    >
-                      Regen Factor
-                    </LabelWithTooltip>
-                    <NumericInput
-                      id="regen-factor"
-                      value={regenFactor}
-                      onChange={setRegenFactor}
-                      min={1}
-                      max={1.5}
-                      step={0.01}
-                      placeholder="1.05"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="climate-control"
-                      checked={climateControl}
-                      onCheckedChange={setClimateControl}
-                    />
-                    <LabelWithTooltip tooltip="Enable if using heating or air conditioning, which consumes additional energy.">
-                      Enable Climate Control
-                    </LabelWithTooltip>
-                  </div>
-
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="regen-braking"
-                      checked={regenBraking}
-                      onCheckedChange={setRegenBraking}
-                    />
-                    <LabelWithTooltip tooltip="Enable if your vehicle has regenerative braking, which recovers energy during deceleration.">
-                      Regenerative Braking
-                    </LabelWithTooltip>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Calculate Button */}
-          <div className="text-center mb-6">
-            <Button
-              onClick={handleCalculate}
-              disabled={!validateInputs()}
-              size="lg"
-              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-8 py-3 text-lg font-semibold shadow-lg"
-            >
-              <Zap className="w-5 h-5 mr-2" />
-              Calculate Range
-            </Button>
-          </div>
-
-          {/* Results */}
-          {calculationTriggered && predictedRange && (
-            <div className="space-y-6">
-              {/* Main Result */}
-              <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-center gap-4">
-                    {getRangeIcon(predictedRange)}
-                    <div className="text-center">
-                      <p className="text-sm text-gray-600 mb-1">Estimated Range</p>
-                      <p className={`text-4xl font-bold ${getRangeColor(predictedRange)}`}>
-                        {predictedRange} km
-                      </p>
-                      {Number(predictedRange) < 50 && (
-                        <Badge variant="destructive" className="mt-2">
-                          Low Range Warning
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Disclaimer */}
-              <Card className="bg-yellow-50 border-yellow-200">
-                <CardContent className="py-4">
-                  <div className="flex items-start gap-3">
-                    <AlertTriangle className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" />
-                    <div className="text-sm text-yellow-800">
-                      <p className="font-semibold mb-1">Important Disclaimer</p>
-                      <p>These numbers are rough estimates based on mathematical models and may not reflect actual real-world performance. Actual range can vary significantly based on driving conditions, weather, vehicle maintenance, and other factors not accounted for in this calculator.</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Detailed Statistics */}
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-                  <CardTitle>Detailed Analysis</CardTitle>
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button variant="outline" size="sm" className="text-blue-600 border-blue-200 hover:bg-blue-50">
-                        <Zap className="w-4 h-4 mr-2" />
-                        Show Formulas
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-                      <DialogHeader>
-                        <DialogTitle className="text-2xl text-blue-600">Calculation Formulas</DialogTitle>
-                      </DialogHeader>
-                      <div className="space-y-6 text-sm">
-                        <div>
-                          <h4 className="font-semibold text-blue-600 mb-3">Main Range Calculation</h4>
-                          <div className="bg-gray-50 p-4 rounded-lg font-mono text-xs">
-                            <p className="mb-2"><strong>Range = (Effective Capacity / Energy Consumption) × 100</strong></p>
-                            <p>Where:</p>
-                            <ul className="ml-4 space-y-1">
-                              <li>• Effective Capacity = Battery Capacity × (SOC / 100) × Degradation × Base Efficiency × Charging Degradation × Temperature Factor × Climate Factor × Regen Factor</li>
-                              <li>• Energy Consumption = Driving Consumption × Terrain Factor</li>
-                            </ul>
-                          </div>
-                        </div>
-
-                        <div>
-                          <h4 className="font-semibold text-blue-600 mb-3">Degradation Factors</h4>
-                          <div className="bg-gray-50 p-4 rounded-lg font-mono text-xs space-y-2">
-                            <p><strong>Cycle Degradation = 0.0001 × Cycles + 0.00000002 × Cycles²</strong></p>
-                            <p><strong>Calendar Degradation = 0.02 × √(Years)</strong></p>
-                            <p><strong>Total Degradation = max(0.3, 1 - (Cycle Degradation + Calendar Degradation))</strong></p>
-                          </div>
-                        </div>
-
-                        <div>
-                          <h4 className="font-semibold text-blue-600 mb-3">Temperature Impact</h4>
-                          <div className="bg-gray-50 p-4 rounded-lg font-mono text-xs">
-                            <p><strong>Temperature Factor = max(0.7, 1.0 - 0.005 × |Temperature - 25|)</strong></p>
-                            <p className="text-gray-600 mt-1">Optimal performance at 25°C, reduced efficiency at extreme temperatures</p>
-                          </div>
-                        </div>
-
-                        <div>
-                          <h4 className="font-semibold text-blue-600 mb-3">Consumption Breakdown</h4>
-                          <div className="bg-gray-50 p-4 rounded-lg font-mono text-xs space-y-2">
-                            <p><strong>Driving Consumption = Base Consumption × Terrain Factor</strong></p>
-                            <p><strong>Climate Control Loss = Base Consumption × (1 - Climate Factor)</strong> (if enabled)</p>
-                            <p><strong>Other Losses = Base Consumption × 0.1</strong> (auxiliary systems)</p>
-                          </div>
-                        </div>
-
-                        <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-                          <p className="text-sm text-yellow-800">
-                            <strong>Note:</strong> These formulas are simplified models based on general EV characteristics. Real-world performance involves many additional variables not captured in this calculator.
-                          </p>
-                        </div>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {/* Core Metrics */}
-                  <Collapsible open={isCoreMetricsOpen} onOpenChange={setIsCoreMetricsOpen}>
-                    <CollapsibleTrigger asChild>
-                      <Button variant="ghost" className="w-full justify-between p-0 h-auto">
-                        <span className="font-semibold text-blue-600">Core Metrics</span>
-                        {isCoreMetricsOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                      </Button>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="mt-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        <div className="p-3 bg-gray-50 rounded-lg">
-                          <MetricLabelWithTooltip tooltip="The actual usable capacity after accounting for state of charge, degradation, temperature effects, and efficiency losses.">
-                            Effective Capacity
-                          </MetricLabelWithTooltip>
-                          <p className={`font-semibold ${Number(calculateStats().effectiveCapacity) < Number(batteryCapacity) * 0.2 ? 'text-red-600' : 'text-gray-900'}`}>
-                            {calculateStats().effectiveCapacity} kWh
-                          </p>
-                        </div>
-                        <div className="p-3 bg-gray-50 rounded-lg">
-                          <MetricLabelWithTooltip tooltip="Total energy consumption including driving consumption adjusted for terrain and other factors.">
-                            Energy Consumption
-                          </MetricLabelWithTooltip>
-                          <p className="font-semibold">{calculateStats().energyConsumption} kWh/100km</p>
-                        </div>
-                        <div className="p-3 bg-gray-50 rounded-lg">
-                          <MetricLabelWithTooltip tooltip="Total battery capacity loss due to aging from both charge cycles and calendar aging combined.">
-                            Total Degradation
-                          </MetricLabelWithTooltip>
-                          <p className={`font-semibold ${Number(calculateStats().totalDegradation) > 10 ? 'text-red-600' : 'text-gray-900'}`}>
-                            {calculateStats().totalDegradation}%
-                          </p>
-                        </div>
-                        <div className="p-3 bg-gray-50 rounded-lg">
-                          <MetricLabelWithTooltip tooltip="Battery capacity loss specifically from charge-discharge cycles. More cycles lead to higher degradation.">
-                            Cycle Degradation
-                          </MetricLabelWithTooltip>
-                          <p className="font-semibold">{calculateStats().cycleDegradation}%</p>
-                        </div>
-                        <div className="p-3 bg-gray-50 rounded-lg">
-                          <MetricLabelWithTooltip tooltip="Battery capacity loss from aging over time, even when not in use. Increases with battery age.">
-                            Calendar Degradation
-                          </MetricLabelWithTooltip>
-                          <p className="font-semibold">{calculateStats().calendarDegradation}%</p>
-                        </div>
-                        <div className="p-3 bg-gray-50 rounded-lg">
-                          <MetricLabelWithTooltip tooltip="Multiplier showing how ambient temperature affects battery performance. Values below 1.0 indicate reduced efficiency.">
-                            Temperature Factor
-                          </MetricLabelWithTooltip>
-                          <p className="font-semibold">{calculateStats().tempFactor}</p>
-                        </div>
-                      </div>
-                    </CollapsibleContent>
-                  </Collapsible>
-
-                  <Separator />
-
-                  {/* Consumption Breakdown */}
-                  <Collapsible open={isConsumptionOpen} onOpenChange={setIsConsumptionOpen}>
-                    <CollapsibleTrigger asChild>
-                      <Button variant="ghost" className="w-full justify-between p-0 h-auto">
-                        <span className="font-semibold text-blue-600">Consumption Breakdown</span>
-                        {isConsumptionOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                      </Button>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="mt-4">
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="p-3 bg-blue-50 rounded-lg">
-                          <MetricLabelWithTooltip tooltip="Energy consumed for vehicle propulsion, adjusted for terrain and driving conditions.">
-                            Driving
-                          </MetricLabelWithTooltip>
-                          <p className="font-semibold text-blue-700">{calculateStats().consumptionBreakdown.driving} kWh/100km</p>
-                        </div>
-                        <div className="p-3 bg-orange-50 rounded-lg">
-                          <MetricLabelWithTooltip tooltip="Additional energy consumed by heating, air conditioning, and other climate control systems.">
-                            Climate Control
-                          </MetricLabelWithTooltip>
-                          <p className="font-semibold text-orange-700">{calculateStats().consumptionBreakdown.climate} kWh/100km</p>
-                        </div>
-                        <div className="p-3 bg-gray-50 rounded-lg">
-                          <MetricLabelWithTooltip tooltip="Energy losses from auxiliary systems like lights, electronics, and inefficiencies in the drivetrain.">
-                            Other Losses
-                          </MetricLabelWithTooltip>
-                          <p className="font-semibold">{calculateStats().consumptionBreakdown.other} kWh/100km</p>
-                        </div>
-                      </div>
-                    </CollapsibleContent>
-                  </Collapsible>
-
-                  <Separator />
-
-                  {/* Range Sensitivity */}
-                  <Collapsible open={isSensitivityOpen} onOpenChange={setIsSensitivityOpen}>
-                    <CollapsibleTrigger asChild>
-                      <Button variant="ghost" className="w-full justify-between p-0 h-auto">
-                        <div className="flex items-center gap-1">
-                          <span className="font-semibold text-blue-600">Range Sensitivity to SOC</span>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Info className="w-4 h-4 text-blue-600 cursor-help" />
-                            </TooltipTrigger>
-                            <TooltipContent side="top" className="max-w-xs">
-                              <p className="text-sm">Shows how your estimated range changes with different battery charge levels, helping you plan trips and charging stops.</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </div>
-                        {isSensitivityOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                      </Button>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="mt-4">
-                      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                        {calculateStats().rangeSensitivity.map(({ soc, range }) => (
-                          <div key={soc} className="p-3 bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg text-center">
-                            <p className="text-sm text-gray-600">SOC {soc}%</p>
-                            <p className={`font-semibold ${Number(range) < 50 ? 'text-red-600' : 'text-gray-900'}`}>
-                              {range} km
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    </CollapsibleContent>
-                  </Collapsible>
-                </CardContent>
-              </Card>
+          {/* Results Section */}
+          <Card className="p-6">
+            <div className="flex justify-between items-start mb-6">
+              <h2 className="text-2xl font-semibold text-foreground">Range Analysis</h2>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowFormulas(!showFormulas)}
+                className="text-sm"
+              >
+                <Calculator className="w-4 h-4 mr-2" />
+                {showFormulas ? 'Hide' : 'Show'} Formulas
+              </Button>
             </div>
-          )}
+
+            <div className="bg-muted/50 rounded-lg p-4 mb-6">
+              <p className="text-sm text-muted-foreground text-center">
+                <Info className="w-4 h-4 inline mr-1" />
+                These calculations provide rough estimates based on typical EV performance characteristics and may vary from actual results.
+              </p>
+            </div>
+
+            {showFormulas && (
+              <Card className="p-4 mb-6 bg-muted/30">
+                <h3 className="text-lg font-semibold mb-3 text-foreground">Calculation Formulas</h3>
+                <div className="space-y-3 text-sm">
+                  <div>
+                    <p className="font-medium text-foreground">Temperature Factor:</p>
+                    <p className="text-muted-foreground font-mono">factor = 1 - (|temp - 70| × 0.015)</p>
+                  </div>
+                  <div>
+                    <p className="font-medium text-foreground">Speed Factor:</p>
+                    <p className="text-muted-foreground font-mono">factor = 1 - ((speed - 25)² × 0.0008)</p>
+                  </div>
+                  <div>
+                    <p className="font-medium text-foreground">Climate Factor:</p>
+                    <p className="text-muted-foreground font-mono">Low: 0.95, Medium: 0.85, High: 0.75</p>
+                  </div>
+                  <div>
+                    <p className="font-medium text-foreground">Terrain Factor:</p>
+                    <p className="text-muted-foreground font-mono">Flat: 1.0, Hilly: 0.9, Mountain: 0.8</p>
+                  </div>
+                  <div>
+                    <p className="font-medium text-foreground">Final Range:</p>
+                    <p className="text-muted-foreground font-mono">EPA Range × All Factors × (Current Charge / 100)</p>
+                  </div>
+                </div>
+              </Card>
+            )}
+
+            <div className="space-y-6">
+              <div className="text-center">
+                <HoverCard>
+                  <HoverCardTrigger asChild>
+                    <div className="cursor-help">
+                      <div className="text-5xl font-bold text-primary mb-2">
+                        {Math.round(estimatedRange)}
+                      </div>
+                      <div className="text-lg text-muted-foreground">
+                        Estimated Range (miles)
+                      </div>
+                    </div>
+                  </HoverCardTrigger>
+                  <HoverCardContent className="w-80">
+                    <p className="text-sm">Your estimated driving range based on current conditions and charge level.</p>
+                  </HoverCardContent>
+                </HoverCard>
+              </div>
+
+              <div>
+                <HoverCard>
+                  <HoverCardTrigger asChild>
+                    <h3 className="text-lg font-semibold mb-4 text-foreground cursor-help flex items-center gap-1">
+                      Core Metrics
+                      <HelpCircle className="w-4 h-4" />
+                    </h3>
+                  </HoverCardTrigger>
+                  <HoverCardContent className="w-80">
+                    <p className="text-sm">Key performance indicators for your current driving scenario.</p>
+                  </HoverCardContent>
+                </HoverCard>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-muted/50 rounded-lg p-4">
+                    <HoverCard>
+                      <HoverCardTrigger asChild>
+                        <div className="cursor-help">
+                          <div className="text-2xl font-bold text-foreground">
+                            {Math.round(efficiency * 10) / 10}
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            Efficiency (mi/kWh)
+                          </div>
+                        </div>
+                      </HoverCardTrigger>
+                      <HoverCardContent className="w-80">
+                        <p className="text-sm">How many miles you can travel per kWh of battery energy under current conditions.</p>
+                      </HoverCardContent>
+                    </HoverCard>
+                  </div>
+                  <div className="bg-muted/50 rounded-lg p-4">
+                    <HoverCard>
+                      <HoverCardTrigger asChild>
+                        <div className="cursor-help">
+                          <div className="text-2xl font-bold text-foreground">
+                            {Math.round((estimatedRange / epaRange) * 100)}%
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            vs EPA Rating
+                          </div>
+                        </div>
+                      </HoverCardTrigger>
+                      <HoverCardContent className="w-80">
+                        <p className="text-sm">How your estimated range compares to the EPA-rated range under ideal conditions.</p>
+                      </HoverCardContent>
+                    </HoverCard>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <HoverCard>
+                  <HoverCardTrigger asChild>
+                    <h3 className="text-lg font-semibold mb-4 text-foreground cursor-help flex items-center gap-1">
+                      Consumption Breakdown
+                      <HelpCircle className="w-4 h-4" />
+                    </h3>
+                  </HoverCardTrigger>
+                  <HoverCardContent className="w-80">
+                    <p className="text-sm">How different factors are affecting your vehicle's energy consumption.</p>
+                  </HoverCardContent>
+                </HoverCard>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <HoverCard>
+                      <HoverCardTrigger asChild>
+                        <span className="text-sm font-medium text-foreground cursor-help">Temperature Impact</span>
+                      </HoverCardTrigger>
+                      <HoverCardContent className="w-80">
+                        <p className="text-sm">How ambient temperature affects battery performance and range.</p>
+                      </HoverCardContent>
+                    </HoverCard>
+                    <span className={`text-sm font-medium ${factors.temperature < 0.9 ? 'text-destructive' : factors.temperature < 0.95 ? 'text-yellow-600' : 'text-green-600'}`}>
+                      {Math.round((1 - factors.temperature) * 100)}% reduction
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <HoverCard>
+                      <HoverCardTrigger asChild>
+                        <span className="text-sm font-medium text-foreground cursor-help">Speed Impact</span>
+                      </HoverCardTrigger>
+                      <HoverCardContent className="w-80">
+                        <p className="text-sm">How your average driving speed affects aerodynamic drag and efficiency.</p>
+                      </HoverCardContent>
+                    </HoverCard>
+                    <span className={`text-sm font-medium ${factors.speed < 0.9 ? 'text-destructive' : factors.speed < 0.95 ? 'text-yellow-600' : 'text-green-600'}`}>
+                      {Math.round((1 - factors.speed) * 100)}% reduction
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <HoverCard>
+                      <HoverCardTrigger asChild>
+                        <span className="text-sm font-medium text-foreground cursor-help">Climate Control</span>
+                      </HoverCardTrigger>
+                      <HoverCardContent className="w-80">
+                        <p className="text-sm">Energy consumed by heating and cooling systems.</p>
+                      </HoverCardContent>
+                    </HoverCard>
+                    <span className={`text-sm font-medium ${factors.climate < 0.9 ? 'text-destructive' : factors.climate < 0.95 ? 'text-yellow-600' : 'text-green-600'}`}>
+                      {Math.round((1 - factors.climate) * 100)}% reduction
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <HoverCard>
+                      <HoverCardTrigger asChild>
+                        <span className="text-sm font-medium text-foreground cursor-help">Terrain</span>
+                      </HoverCardTrigger>
+                      <HoverCardContent className="w-80">
+                        <p className="text-sm">Additional energy required for climbing hills and mountains.</p>
+                      </HoverCardContent>
+                    </HoverCard>
+                    <span className={`text-sm font-medium ${factors.terrain < 0.9 ? 'text-destructive' : factors.terrain < 0.95 ? 'text-yellow-600' : 'text-green-600'}`}>
+                      {Math.round((1 - factors.terrain) * 100)}% reduction
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <HoverCard>
+                  <HoverCardTrigger asChild>
+                    <h3 className="text-lg font-semibold mb-4 text-foreground cursor-help flex items-center gap-1">
+                      Range Sensitivity
+                      <HelpCircle className="w-4 h-4" />
+                    </h3>
+                  </HoverCardTrigger>
+                  <HoverCardContent className="w-80">
+                    <p className="text-sm">How sensitive your range is to changes in different driving conditions.</p>
+                  </HoverCardContent>
+                </HoverCard>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium text-foreground">10°F colder</span>
+                    <span className="text-sm text-muted-foreground">
+                      {Math.round(epaRange * (currentCharge / 100) * factors.speed * factors.climate * factors.terrain * Math.max(0.4, 1 - (Math.abs((temperature - 10) - 70) * 0.015)))} miles
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium text-foreground">+10 mph faster</span>
+                    <span className="text-sm text-muted-foreground">
+                      {Math.round(epaRange * (currentCharge / 100) * factors.temperature * factors.climate * factors.terrain * Math.max(0.4, 1 - (Math.pow(Math.max(0, (avgSpeed + 10) - 25), 2) * 0.0008)))} miles
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium text-foreground">High climate use</span>
+                    <span className="text-sm text-muted-foreground">
+                      {Math.round(epaRange * (currentCharge / 100) * factors.temperature * factors.speed * factors.terrain * 0.75)} miles
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Card>
         </div>
       </div>
-    </TooltipProvider>
+    </div>
   );
-};
-
-export default Index;
+}
