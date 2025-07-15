@@ -183,6 +183,7 @@ const Index = () => {
   // Real-time updates with debounce
   useEffect(() => {
     if (!calculationTriggered) return;
+    
     const handler = debounce(() => {
       if (validateInputs()) {
         const { range } = calculateStats();
@@ -191,8 +192,10 @@ const Index = () => {
         setPredictedRange(null);
       }
     }, 300);
+    
     handler();
-    return () => clearTimeout(timeoutId);
+    
+    // No cleanup needed as debounce handles its own timeout
   }, [soc, batteryCapacity, drivingConsumption, temperature, baseEfficiency, chargingDegradation, 
       batteryAgeCycles, batteryAgeYears, terrainFactor, climateControl, climateFactor, 
       regenBraking, regenFactor, showAdvanced, calculationTriggered]);
