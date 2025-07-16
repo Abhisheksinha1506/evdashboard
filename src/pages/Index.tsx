@@ -26,7 +26,7 @@ const NumericInput = React.forwardRef<
     if (!isNaN(parsedValue)) {
       onChange(parsedValue);
     } else if (e.target.value === "") {
-      onChange(NaN);
+      onChange(0);
     }
   };
 
@@ -34,7 +34,7 @@ const NumericInput = React.forwardRef<
     <Input
       type="number"
       className={className}
-      value={isNaN(value) ? '' : value}
+      value={isNaN(value as number) ? '' : (value as number)}
       onChange={handleChange}
       ref={ref}
       {...props}
@@ -144,7 +144,7 @@ export default function Index() {
                 <NumericInput
                   id="batteryCapacity"
                   value={batteryCapacity}
-                  onChange={setBatteryCapacity}
+                  onChange={(value) => setBatteryCapacity(value)}
                   min={10}
                   max={200}
                   step={1}
@@ -167,7 +167,7 @@ export default function Index() {
                 <NumericInput
                   id="epaRange"
                   value={epaRange}
-                  onChange={setEpaRange}
+                  onChange={(value) => setEpaRange(value)}
                   min={50}
                   max={500}
                   step={1}
@@ -191,7 +191,7 @@ export default function Index() {
                   <NumericInput
                     id="currentCharge"
                     value={currentCharge}
-                    onChange={setCurrentCharge}
+                    onChange={(value) => setCurrentCharge(value)}
                     min={0}
                     max={100}
                     step={1}
@@ -220,7 +220,7 @@ export default function Index() {
                 <NumericInput
                   id="temperature"
                   value={temperature}
-                  onChange={setTemperature}
+                  onChange={(value) => setTemperature(value)}
                   min={-20}
                   max={120}
                   step={1}
@@ -243,7 +243,7 @@ export default function Index() {
                 <NumericInput
                   id="avgSpeed"
                   value={avgSpeed}
-                  onChange={setAvgSpeed}
+                  onChange={(value) => setAvgSpeed(value)}
                   min={5}
                   max={85}
                   step={1}
