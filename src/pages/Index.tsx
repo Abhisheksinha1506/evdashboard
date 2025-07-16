@@ -26,7 +26,7 @@ const NumericInput = React.forwardRef<
     if (!isNaN(parsedValue)) {
       onChange(parsedValue);
     } else if (e.target.value === "") {
-      onChange(0);
+      onChange(NaN);
     }
   };
 
